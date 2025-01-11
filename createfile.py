@@ -1,33 +1,36 @@
 import csv
-import os
+import io
+import boto3
+import datetime
 
-def create_csv_file(filename):
-    # Define the header
-    header = ['name', 'age']
-    
-    # Define some sample data
+def lambda_handler(event, context):
+    # Data to be written to CSV
     data = [
-        {'name': 'Alice', 'age': 30},
-        {'name': 'Bob', 'age': 25},
-        {'name': 'Charlie', 'age': 35}
+        ['Name', 'Age', 'City'],
+        ['Alice', '30', 'New York'],
+        ['Bob', '25', 'Los Angeles'],
+        ['Charlie', '35', 'Chicago']
     ]
     
-    # Construct the file path
-    dir_path = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(dir_path, filename)
+    # Create a CSV file in memory
+    csv_buffer = io.StringIO()
+    csv_writer = csv.writer(csv_buffer)
+    csv_writer.writerows(data)
     
-    # Check if the file already exists
-    if not os.path.exists(file_path):
-        # Write to the CSV file
-        with open(file_path, mode='w', newline='') as file:
-            writer = csv.DictWriter(file, fieldnames=header)
-            writer.writeheader()
-            for row in data:
-                writer.writerow(row)
-        print(f'File {filename} created successfully.')
-    else:
-        print(f'File {filename} already exists.')
-
-# Example usage
-print('Creating a CSV file...')
-create_csv_file('output.csv')
+    # Generate a dynamic file name
+    timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    file_name = f"test_{timestamp}.csv"
+    
+    # Upload the CSV file to S3
+    s3 = boto3.client('s3')
+    try:
+        s3.put_object(Bucket='mytestbucketpj', Key=file_name, Body=csv_buffer.getvalue())
+        return {
+            'statusCode': 200,
+            'body': f'CSV file {file_name} created and uploaded to S3 successfully!'
+        }
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'body': f'Error uploading CSV file to S3: {str(e)}'
+        }
